@@ -18,6 +18,8 @@ migrations/
 # macOS cruft
 .DS_Store
 
+.env
+
 # Editor/IDE files
 .vscode/
 .idea/
