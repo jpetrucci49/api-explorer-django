@@ -29,6 +29,11 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_API_URL = os.getenv("GITHUB_API_URL")
 
+# Redis DB
+REDIS_HOST  = os.getenv("REDIS_HOST")
+REDIS_PORT  = os.getenv("REDIS_PORT")
+REDIS_PASSWORD  = os.getenv("REDIS_PASSWORD")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 

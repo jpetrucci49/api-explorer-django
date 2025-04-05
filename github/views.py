@@ -1,12 +1,13 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
+from django.http import JsonResponse
 import requests
 from django.conf import settings
-from time import time
+import redis
+import json
 
-CACHE_TTL = 30 * 60  # 30 minutes in seconds
-cache = {}  # {cache_key: {"data": data, "timestamp": time}}
+redis_client = redis.Redis(host=f"{settings.REDIS_HOST}", port=F"{settings.REDIS_PORT}", password=f"{settings.REDIS_PASSWORD}", decode_responses=True)
 
 @api_view(['GET'])
 def get_github_user(request):
@@ -15,10 +16,11 @@ def get_github_user(request):
         return Response({"detail": "Username is required"}, status=status.HTTP_400_BAD_REQUEST)
     
     cache_key = f"github:{username}"
-    cached = cache.get(cache_key)
-    if cached and (time() - cached["timestamp"]) < CACHE_TTL:
-        response = Response(cached["data"])
-        response["X-Cache"] = "HIT"
+    cached = redis_client.get(cache_key)
+    if cached:
+        response = JsonResponse(json.loads(cached))
+        response['X-Cache'] = 'HIT'
+        return response
     else:
         try:
             response = requests.get(
@@ -28,8 +30,8 @@ def get_github_user(request):
             if response.status_code != 200:
                 return Response({"detail": "GitHub API error"}, status=response.status_code)
             data = response.json()
-            cache[cache_key] = {"data": data, "timestamp": time()}
-            response = Response(data)
+            redis_client.setex(cache_key, 1800, json.dumps(data))
+            response = JsonResponse(data)
             response["X-Cache"] = "MISS"
         except requests.RequestException:
             return Response({"detail": "Failed to reach GitHub"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
