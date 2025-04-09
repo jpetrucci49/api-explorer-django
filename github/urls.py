@@ -3,4 +3,5 @@ from . import views
 
 urlpatterns = [
     path('github', views.get_github_user, name='get_github_user'),
+    path('analyze', views.analyze, name='analyze'),
 ]
