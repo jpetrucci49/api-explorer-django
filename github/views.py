@@ -12,7 +12,8 @@ redis_client = redis.Redis(
     host=settings.REDIS_HOST,
     port=int(settings.REDIS_PORT), 
     password=settings.REDIS_PASSWORD, 
-    decode_responses=True)
+    decode_responses=True
+)
 
 common_headers = {
     "Content-Type": "application/json",
@@ -105,3 +106,11 @@ def analyze(request):
         return Response({"detail": "GitHub API error"}, status=e.response.status_code, headers=common_headers)
     except requests.RequestException as e:
         return Response({"detail": "Failed to analyze profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=common_headers)
+
+@api_view(['POST'])
+def clear_cache(request):
+    try:
+        redis_client.flushdb()
+        return Response({"detail": "Cache cleared successfully"}, headers=common_headers)
+    except redis.RedisError as e:
+        return Response({"detail": "Failed to clear cache"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=common_headers)
