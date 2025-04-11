@@ -21,7 +21,7 @@ common_headers = {
     "Pragma": "no-cache",
     "Expires": "0",
     "Access-Control-Allow-Origin": "http://localhost:3000",
-    "Access-Control-Allow-Methods": "GET",
+    "Access-Control-Allow-Methods": "GET, POST",
     "Access-Control-Allow-Headers": "*",
     "Access-Control-Expose-Headers": "X-Cache",
 }
