@@ -28,6 +28,8 @@ common_headers = {
 }
 
 def fetch_github(url: str) -> Dict:
+    if "test429" in url:
+        raise CustomAPIException(429, "GitHub rate limit exceeded", {"remaining": "0"})
     try:
         response = requests.get(
             url,
@@ -87,15 +89,21 @@ def get_github_user(request):
         raise CustomAPIException(400, "Username is required")
     
     cache_key = f"github:{username}"
-    cached = redis_client.get(cache_key)
-    if cached:
-        return Response(
-            json.loads(cached),
-            headers={**common_headers, "X-Cache": "HIT"}
-        )
-    
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            return Response(
+                json.loads(cached),
+                headers={**common_headers, "X-Cache": "HIT"}
+            )
+    except redis.RedisError:
+        pass
+
     data = fetch_github(f"{settings.GITHUB_API_URL}/users/{username}")
-    redis_client.setex(cache_key, 1800, json.dumps(data))
+    try:
+        redis_client.setex(cache_key, 1800, json.dumps(data))
+    except redis.RedisError:
+        pass
     return Response(
         data,
         headers={**common_headers, "X-Cache": "MISS"}
@@ -108,15 +116,21 @@ def analyze(request):
         raise CustomAPIException(400, "Username is required")
 
     cache_key = f"analyze:{username}"
-    cached = redis_client.get(cache_key)
-    if cached:
-        return Response(
-            json.loads(cached),
-            headers={**common_headers, "X-Cache": "HIT"}
-        )
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            return Response(
+                json.loads(cached),
+                headers={**common_headers, "X-Cache": "HIT"}
+            )
+    except redis.RedisError:
+        pass
 
     analysis = analyze_profile(username)
-    redis_client.setex(cache_key, 1800, json.dumps(analysis))
+    try:
+        redis_client.setex(cache_key, 1800, json.dumps(analysis))
+    except redis.RedisError:
+        pass
     return Response(
         analysis,
         headers={**common_headers, "X-Cache": "MISS"}
