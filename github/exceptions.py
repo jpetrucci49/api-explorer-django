@@ -17,9 +17,11 @@ def custom_exception_handler(exc, context):
             detail = response.data
     
     response.data = {
-        "status": status_code,
-        "detail": detail,
-        "extra": extra
+        "detail": {
+            "status": status_code,
+            "detail": detail,
+            "extra": extra
+        }
     }
     response.status_code = status_code
     return response
