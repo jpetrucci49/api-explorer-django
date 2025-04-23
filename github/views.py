@@ -7,6 +7,7 @@ from django.conf import settings
 import redis
 import json
 from typing import Dict
+from .exceptions import CustomAPIException
 
 redis_client = redis.Redis(
     host=settings.REDIS_HOST,
@@ -27,17 +28,40 @@ common_headers = {
 }
 
 def fetch_github(url: str) -> Dict:
-    response = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {settings.GITHUB_TOKEN}"}
-    )
-    response.raise_for_status()
-    return response.json()
+    try:
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {settings.GITHUB_TOKEN}"},
+            timeout=10
+        )
+        if not response.ok:
+            status_code = response.status_code
+            detail = "GitHub API error"
+            extra = {}
+            if status_code == 404:
+                detail = "GitHub user not found"
+            elif status_code == 429:
+                detail = "GitHub rate limit exceeded"
+                extra["remaining"] = response.headers.get("x-ratelimit-remaining", "0")
+            elif status_code == 400:
+                detail = "Invalid GitHub API request"
+            raise CustomAPIException(status_code, detail, extra)
+        return response.json()
+    except requests.RequestException:
+        raise CustomAPIException(500, "Failed to reach GitHub", {})
 
 def analyze_profile(username: str) -> Dict:
     user_data = fetch_github(f"{settings.GITHUB_API_URL}/users/{username}")
     repos = fetch_github(f"{user_data['repos_url']}?per_page=100")
-    languages = [fetch_github(repo["languages_url"]) for repo in repos]
+    languages = []
+    for repo in repos:
+        try:
+            lang_data = fetch_github(repo["languages_url"])
+            languages.append(lang_data)
+        except CustomAPIException as e:
+            if e.status_code == 404:
+                continue
+            raise
 
     lang_stats = {}
     for lang_data in languages:
@@ -60,7 +84,7 @@ def analyze_profile(username: str) -> Dict:
 def get_github_user(request):
     username = request.query_params.get('username')
     if not username:
-        return Response({"detail": "Username is required"}, status=status.HTTP_400_BAD_REQUEST)
+        raise CustomAPIException(400, "Username is required")
     
     cache_key = f"github:{username}"
     cached = redis_client.get(cache_key)
@@ -69,23 +93,19 @@ def get_github_user(request):
             json.loads(cached),
             headers={**common_headers, "X-Cache": "HIT"}
         )
-    try:
-        data = fetch_github(f"{settings.GITHUB_API_URL}/users/{username}")
-        redis_client.setex(cache_key, 1800, json.dumps(data))
-        return Response(
-            data,
-            headers={**common_headers, "X-Cache": "MISS"}
-        )
-    except requests.HTTPError as e:
-        return Response({"detail": "GitHub API error"}, status=e.response.status_code, headers=common_headers)
-    except requests.RequestException as e:
-        return Response({"detail": "Failed to reach GitHub"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=common_headers)
+    
+    data = fetch_github(f"{settings.GITHUB_API_URL}/users/{username}")
+    redis_client.setex(cache_key, 1800, json.dumps(data))
+    return Response(
+        data,
+        headers={**common_headers, "X-Cache": "MISS"}
+    )
 
 @api_view(["GET"])
 def analyze(request):
     username = request.query_params.get("username")
     if not username:
-        return Response({"detail": "Username is required"}, status=status.HTTP_400_BAD_REQUEST, headers=common_headers)
+        raise CustomAPIException(400, "Username is required")
 
     cache_key = f"analyze:{username}"
     cached = redis_client.get(cache_key)
@@ -95,22 +115,17 @@ def analyze(request):
             headers={**common_headers, "X-Cache": "HIT"}
         )
 
-    try:
-        analysis = analyze_profile(username)
-        redis_client.setex(cache_key, 1800, json.dumps(analysis))
-        return Response(
-            analysis,
-            headers={**common_headers, "X-Cache": "MISS"}
-        )
-    except requests.HTTPError as e:
-        return Response({"detail": "GitHub API error"}, status=e.response.status_code, headers=common_headers)
-    except requests.RequestException as e:
-        return Response({"detail": "Failed to analyze profile"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=common_headers)
+    analysis = analyze_profile(username)
+    redis_client.setex(cache_key, 1800, json.dumps(analysis))
+    return Response(
+        analysis,
+        headers={**common_headers, "X-Cache": "MISS"}
+    )
 
 @api_view(['POST'])
 def clear_cache(request):
     try:
         redis_client.flushdb()
         return Response({"detail": "Cache cleared successfully"}, headers=common_headers)
-    except redis.RedisError as e:
-        return Response({"detail": "Failed to clear cache"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=common_headers)
+    except redis.RedisError:
+        raise CustomAPIException(500, "Failed to clear cache")
