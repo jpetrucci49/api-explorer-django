@@ -55,6 +55,10 @@ INSTALLED_APPS = [
     'github',
 ]
 
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'github.exceptions.custom_exception_handler',
+}
+
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
