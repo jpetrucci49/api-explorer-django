@@ -11,9 +11,11 @@ from .exceptions import CustomAPIException
 
 redis_client = redis.Redis(
     host=settings.REDIS_HOST,
-    port=int(settings.REDIS_PORT), 
-    password=settings.REDIS_PASSWORD, 
-    decode_responses=True
+    port=int(settings.REDIS_PORT),
+    password=settings.REDIS_PASSWORD,
+    decode_responses=True,
+    socket_connect_timeout=3,
+    socket_timeout=3,
 )
 
 common_headers = {
@@ -21,10 +23,6 @@ common_headers = {
     "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
     "Pragma": "no-cache",
     "Expires": "0",
-    "Access-Control-Allow-Origin": "http://localhost:3000",
-    "Access-Control-Allow-Methods": "GET, POST",
-    "Access-Control-Allow-Headers": "*",
-    "Access-Control-Expose-Headers": "X-Cache",
 }
 
 def fetch_github(url: str) -> Dict:
@@ -81,6 +79,10 @@ def analyze_profile(username: str) -> Dict:
         "publicRepos": user_data["public_repos"],
         "topLanguages": top_languages
     }
+
+@api_view(['GET'])
+def health(request):
+    return Response({"status": "ok"})
 
 @api_view(['GET'])
 def get_github_user(request):

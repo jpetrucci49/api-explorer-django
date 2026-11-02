@@ -48,6 +48,16 @@ A RESTful API built with Django and DRF to fetch and cache GitHub user data. Int
 }
 ```
 
+## Production
+
+The process reads `PORT` (default 3003), `GITHUB_TOKEN`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, and `FRONTEND_ORIGIN` (default `http://localhost:3000`). Also set `DJANGO_SECRET_KEY`, `DJANGO_DEBUG=false`, and `ALLOWED_HOSTS` if the host does not set `RENDER_EXTERNAL_HOSTNAME`. Redis must be plain TCP, with TLS off. Copy `.env.example` to `.env` and do not commit `.env`.
+
+```bash
+gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+```
+
+`GET /health` returns 200 for the host health check. Deploy steps live in the [umbrella README](https://github.com/jpetrucci49/fullstack-api-explorer).
+
 ## Next Steps
 
 - Add `/analyze` endpoint for profile insights (e.g., language stats).

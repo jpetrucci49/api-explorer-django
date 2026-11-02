@@ -27,19 +27,31 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 
 # GitHub API
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_API_URL = os.getenv("GITHUB_API_URL")
+GITHUB_API_URL = os.getenv("GITHUB_API_URL") or "https://api.github.com"
 
-# Redis DB
-REDIS_HOST  = os.getenv("REDIS_HOST")
-REDIS_PORT  = os.getenv("REDIS_PORT")
-REDIS_PASSWORD  = os.getenv("REDIS_PASSWORD")
+# Redis DB (plain TCP; do not point this at a TLS-only Redis URL)
+REDIS_HOST = os.getenv("REDIS_HOST") or "localhost"
+REDIS_PORT = os.getenv("REDIS_PORT") or "6379"
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() != "false"
 
-ALLOWED_HOSTS = ["localhost", "0.0.0.0"]
+def _env_list(name, default):
+    return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
 
-CORS_ALLOWED_ORIGINS = ["http://localhost:3000"]
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", "localhost,0.0.0.0")
+render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if render_host and render_host not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(render_host)
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(",")
+    if origin.strip()
+]
+CORS_EXPOSE_HEADERS = ["X-Cache"]
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
 
 # Application definition
 
